@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Radical Matching Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://css.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            touch-action: manipulation; /* 禁用雙擊縮放 */
+        }
+        .card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent; /* 禁用點擊時的灰色背景 */
+        }
+        .card.selected {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-color: #3b82f6; /* blue-500 */
+        }
+        .card.matched {
+            transform: scale(0.95);
+            background-color: #d1fae5; /* green-100 */
+            border-color: #10b981; /* green-500 */
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+         .card.matched .radical-char {
+            color: #059669; /* green-600 */
+        }
+        .card.incorrect {
+            animation: shake 0.5s;
+            border-color: #ef4444; /* red-500 */
+        }
+        .radical-char {
+            font-size: 3.5rem; /* 放大部首字符 */
+            line-height: 1;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+        .level-btn {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .level-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div id="app-container" class="w-full max-w-md mx-auto">
+
+        <!-- Level Selection Screen -->
+        <div id="level-selection-screen" class="bg-white p-8 rounded-2xl shadow-lg text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Select a Level</h1>
+            <div id="level-buttons-container" class="grid grid-cols-4 gap-4">
+                <!-- Level buttons will be injected here -->
+            </div>
+        </div>
+
+        <!-- Name Input Screen -->
+        <div id="name-input-screen" class="hidden bg-white p-8 rounded-2xl shadow-lg text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Enter Your Name</h1>
+            <input type="text" id="player-name-input" placeholder="Your Name" class="w-full text-center border-2 border-gray-300 rounded-lg p-3 text-lg mb-6 focus:border-blue-500 focus:ring-blue-500">
+            <button id="start-game-btn" class="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 shadow-md text-lg">Start Game</button>
+            <button id="back-to-levels-from-name-btn" class="w-full mt-3 bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Back to Levels</button>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="game-screen" class="hidden">
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                <!-- Player Name Display -->
+                <div class="text-center mb-2">
+                    <p id="player-name-display" class="text-lg font-medium text-gray-600"></p>
+                </div>
+                 <!-- Level Display -->
+                <div class="flex justify-between items-center text-center mb-4">
+                     <button id="back-to-levels-btn" class="text-sm bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Back</button>
+                    <p id="level-display" class="text-xl font-bold text-gray-700">Level 1 / 10</p>
+                    <div class="w-16"></div> <!-- Placeholder for alignment -->
+                </div>
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <p class="text-sm text-gray-500">Score</p>
+                        <p id="score" class="text-2xl font-bold text-gray-800">0</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 text-right">Time</p>
+                        <p id="timer" class="text-2xl font-bold text-gray-800">60</p>
+                    </div>
+                </div>
+
+                <!-- Game Board -->
+                <div id="game-board" class="grid grid-cols-4 gap-3 sm:gap-4">
+                    <!-- Cards will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Level Complete Modal -->
+        <div id="level-complete-modal" class="hidden modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="modal-content bg-white p-8 rounded-2xl shadow-lg text-center transform scale-95">
+                <p id="congrats-message" class="text-2xl font-bold text-gray-800 mb-4"></p>
+                <p id="level-score-text" class="text-lg text-gray-700 mb-4"></p>
+                <button id="levels-return-btn" class="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-colors shadow-md">Back to Levels</button>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="hidden modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="modal-content bg-white p-8 rounded-2xl shadow-lg text-center transform scale-95">
+                 <h2 id="game-over-title" class="text-3xl font-bold text-gray-800 mb-2">Time's Up!</h2>
+                 <p id="game-over-level-display" class="text-xl font-semibold text-gray-700 mb-4"></p>
+                 <p id="final-score-text" class="text-lg text-gray-700 mb-4"></p>
+                <button id="play-again-btn" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow-md">Back to Levels</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const allLevelsData = [
+            // Level 1
+            [
+                { radical: '口', meaning: 'mouth' }, { radical: '日', meaning: 'sun' },
+                { radical: '月', meaning: 'moon' }, { radical: '目', meaning: 'eye' },
+                { radical: '山', meaning: 'mountain' }, { radical: '水', meaning: 'water' },
+                { radical: '人', meaning: 'person' }, { radical: '子', meaning: 'child' }
+            ],
+            // Level 2
+            [
+                { radical: '女', meaning: 'woman' }, { radical: '手', meaning: 'hand' },
+                { radical: '心', meaning: 'heart' }, { radical: '耳', meaning: 'ear' },
+                { radical: '火', meaning: 'fire' }, { radical: '木', meaning: 'tree' },
+                { radical: '門', meaning: 'door' }, { radical: '牛', meaning: 'cow' }
+            ],
+            // Level 3
+            [
+                { radical: '馬', meaning: 'a horse' }, { radical: '土', meaning: 'earth; soil' },
+                { radical: '田', meaning: 'field' }, { radical: '車', meaning: 'vehicle' },
+                { radical: '宀', meaning: 'roof of a building' }, { radical: '竹', meaning: 'bamboo' },
+                { radical: '肉', meaning: 'meat' }, { radical: '貝', meaning: 'shell money' }
+            ],
+            // Level 4
+            [
+                { radical: '囗', meaning: 'to surround' }, { radical: '戈', meaning: 'spear, weapon' },
+                { radical: '生', meaning: 'to be born' }, { radical: '辶', meaning: 'long walk' },
+                { radical: '糸', meaning: 'silk' }, { radical: '小', meaning: 'small, little' },
+                { radical: '言', meaning: 'words, talk' }, { radical: '食', meaning: 'to eat; food' }
+            ],
+            // Level 5
+            [
+                { radical: '金', meaning: 'gold, metal' }, { radical: '雨', meaning: 'rain' },
+                { radical: '衣', meaning: 'clothes' }, { radical: '示', meaning: 'to show' },
+                { radical: '艹', meaning: 'grass, plant' }, { radical: '禾', meaning: 'plant' },
+                { radical: '隹', meaning: 'short-tailed bird' }, { radical: '酉', meaning: 'wine vessel' }
+            ],
+            // Level 6
+            [
+                { radical: '阝', meaning: 'a town or a city' }, { radical: '攵', meaning: 'to knock' },
+                { radical: '穴', meaning: 'cave' }, { radical: '舟', meaning: 'boat' },
+                { radical: '弓', meaning: 'bow; curved' }, { radical: '巾', meaning: 'towel, handkerchief' },
+                { radical: '見', meaning: 'see' }, { radical: '老', meaning: 'old' }
+            ],
+            // Level 7
+            [
+                { radical: '白', meaning: 'white' }, { radical: '曰', meaning: 'say' },
+                { radical: '力', meaning: 'strength; power' }, { radical: '大', meaning: 'big, large' },
+                { radical: '黑', meaning: 'black, dark' }, { radical: '石', meaning: 'stone, rock' },
+                { radical: '刀', meaning: 'knife' }, { radical: '玉', meaning: 'jade' }
+            ],
+            // Level 8
+            [
+                { radical: '广', meaning: 'shelter' }, { radical: '足', meaning: 'foot' },
+                { radical: '夕', meaning: 'dusk, evening' }, { radical: '母', meaning: 'mother' },
+                { radical: '片', meaning: 'slice' }, { radical: '欠', meaning: 'owe' },
+                { radical: '刀', meaning: 'knife' }, { radical: '白', meaning: 'white' }
+            ],
+            // Level 9 (Comprehensive)
+            [
+                { radical: '月', meaning: 'moon' }, { radical: '女', meaning: 'woman' },
+                { radical: '田', meaning: 'field' }, { radical: '生', meaning: 'to be born' },
+                { radical: '雨', meaning: 'rain' }, { radical: '舟', meaning: 'boat' },
+                { radical: '白', meaning: 'white' }, { radical: '人', meaning: 'person' }
+            ],
+            // Level 10 (Comprehensive)
+            [
+                { radical: '口', meaning: 'mouth' }, { radical: '火', meaning: 'fire' },
+                { radical: '竹', meaning: 'bamboo' }, { radical: '小', meaning: 'small, little' },
+                { radical: '衣', meaning: 'clothes' }, { radical: '弓', meaning: 'bow; curved' },
+                { radical: '玉', meaning: 'jade' }, { radical: '手', meaning: 'hand' }
+            ]
+        ];
+
+        const levelSelectionScreen = document.getElementById('level-selection-screen');
+        const nameInputScreen = document.getElementById('name-input-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const levelCompleteModal = document.getElementById('level-complete-modal');
+        const gameOverModal = document.getElementById('game-over-modal');
+        
+        const levelButtonsContainer = document.getElementById('level-buttons-container');
+        const playerNameInput = document.getElementById('player-name-input');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const backToLevelsFromnameBtn = document.getElementById('back-to-levels-from-name-btn');
+        const backToLevelsBtn = document.getElementById('back-to-levels-btn');
+        const levelsReturnBtn = document.getElementById('levels-return-btn');
+        const playAgainBtn = document.getElementById('play-again-btn');
+
+        const gameBoard = document.getElementById('game-board');
+
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const levelDisplayEl = document.getElementById('level-display');
+        const playerNameDisplayEl = document.getElementById('player-name-display');
+
+        const congratsMessageEl = document.getElementById('congrats-message');
+        const levelScoreTextEl = document.getElementById('level-score-text');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverLevelDisplay = document.getElementById('game-over-level-display');
+        const finalScoreTextEl = document.getElementById('final-score-text');
+
+        let score = 0;
+        let timeLeft = 60;
+        let timerInterval;
+        let firstCard = null;
+        let secondCard = null;
+        let boardLocked = false;
+        let matchesFound = 0;
+        const totalMatches = 8;
+        let currentLevel = 1;
+        let playerName = '';
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function createGameBoard() {
+            gameBoard.innerHTML = '';
+            matchesFound = 0;
+            const levelData = allLevelsData[currentLevel - 1];
+            
+            let gameCards = [];
+            levelData.forEach((item, index) => {
+                gameCards.push({ type: 'radical', value: item.radical, pairId: index });
+                gameCards.push({ type: 'meaning', value: item.meaning, pairId: index });
+            });
+            
+            shuffle(gameCards);
+
+            gameCards.forEach(cardData => {
+                const card = document.createElement('div');
+                card.className = 'card bg-white p-2 border-2 border-gray-200 rounded-lg flex items-center justify-center text-center h-20 sm:h-24';
+                card.dataset.type = cardData.type;
+                card.dataset.value = cardData.value;
+                card.dataset.pairId = cardData.pairId;
+                
+                if (cardData.type === 'radical') {
+                    card.innerHTML = `<span class="radical-char font-noto text-gray-800 text-4xl sm:text-5xl">${cardData.value}</span>`;
+                } else {
+                    card.innerHTML = `<span class="text-base sm:text-lg font-medium text-gray-700">${cardData.value}</span>`;
+                }
+                card.addEventListener('click', onCardClick);
+                gameBoard.appendChild(card);
+            });
+        }
+        
+        function onCardClick(e) {
+            if (boardLocked) return;
+            const clickedCard = e.currentTarget;
+            if (clickedCard === firstCard || clickedCard.classList.contains('matched')) return;
+
+            clickedCard.classList.add('selected');
+
+            if (!firstCard) {
+                firstCard = clickedCard;
+                return;
+            }
+
+            secondCard = clickedCard;
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            boardLocked = true;
+            const isMatch = firstCard.dataset.pairId === secondCard.dataset.pairId && firstCard.dataset.type !== secondCard.dataset.type;
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            score += 10;
+            scoreEl.textContent = score;
+            matchesFound++;
+
+            firstCard.removeEventListener('click', onCardClick);
+            secondCard.removeEventListener('click', onCardClick);
+            firstCard.classList.add('matched');
+            secondCard.classList.add('matched');
+            
+            resetBoard();
+
+            if (matchesFound === totalMatches) {
+                setTimeout(() => endGame(true), 300); // Level Won
+            }
+        }
+
+        function unflipCards() {
+            firstCard.classList.add('incorrect');
+            secondCard.classList.add('incorrect');
+
+            setTimeout(() => {
+                firstCard.classList.remove('selected', 'incorrect');
+                secondCard.classList.remove('selected', 'incorrect');
+                resetBoard();
+            }, 800);
+        }
+        
+        function resetBoard() {
+            [firstCard, secondCard, boardLocked] = [null, null, false];
+        }
+
+        function startTimer() {
+            timeLeft = 60;
+            timerEl.textContent = timeLeft;
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    endGame(false); // Time's up
+                }
+            }, 1000);
+        }
+
+        function showModal(modal) {
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('.modal-content').classList.remove('scale-95');
+                modal.querySelector('.modal-content').classList.add('scale-100');
+            }, 10);
+        }
+
+        function hideModal(modal) {
+            modal.querySelector('.modal-content').classList.remove('scale-100');
+            modal.querySelector('.modal-content').classList.add('scale-95');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function startGame() {
+            resetBoard();
+            score = 0; // Reset score for the level
+            levelDisplayEl.textContent = `Level ${currentLevel} / ${allLevelsData.length}`;
+            scoreEl.textContent = score;
+            playerNameDisplayEl.textContent = playerName;
+            
+            nameInputScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            
+            createGameBoard();
+            startTimer();
+        }
+
+        function endGame(isWin) {
+            clearInterval(timerInterval);
+            
+            if (isWin) {
+                congratsMessageEl.textContent = `Great job, ${playerName}!`;
+                levelScoreTextEl.innerHTML = `Level <span class="font-bold text-red-500">${currentLevel}</span>: <span class="font-bold text-2xl text-blue-500">${score}</span>`;
+                showModal(levelCompleteModal);
+            } else {
+                gameOverTitle.textContent = "Time's Up!";
+                gameOverLevelDisplay.innerHTML = `Level <span class="font-bold text-red-500">${currentLevel}</span>`;
+                finalScoreTextEl.innerHTML = `Your score is: <span class="font-bold text-2xl text-blue-500">${score}</span>`;
+                showModal(gameOverModal);
+            }
+        }
+
+        function showLevelSelection() {
+            gameScreen.classList.add('hidden');
+            nameInputScreen.classList.add('hidden');
+            levelSelectionScreen.classList.remove('hidden');
+            hideModal(levelCompleteModal);
+            hideModal(gameOverModal);
+            clearInterval(timerInterval);
+        }
+
+        function createLevelButtons() {
+            levelButtonsContainer.innerHTML = ''; // Clear previous buttons
+            for (let i = 1; i <= allLevelsData.length; i++) {
+                const button = document.createElement('button');
+                button.textContent = `${i}`;
+                if (i > 8) {
+                    button.textContent = `C${i-8}`
+                }
+                button.className = "level-btn bg-blue-500 text-white font-bold py-4 px-2 rounded-lg hover:bg-blue-600 shadow-md text-lg";
+                button.addEventListener('click', () => {
+                    currentLevel = i;
+                    levelSelectionScreen.classList.add('hidden');
+                    nameInputScreen.classList.remove('hidden');
+                    playerNameInput.value = ''; // Clear name input
+                    playerNameInput.focus();
+                });
+                levelButtonsContainer.appendChild(button);
+            }
+        }
+        
+        startGameBtn.addEventListener('click', () => {
+            playerName = playerNameInput.value.trim() || 'Player';
+            startGame();
+        });
+        
+        backToLevelsBtn.addEventListener('click', showLevelSelection);
+        backToLevelsFromnameBtn.addEventListener('click', showLevelSelection);
+        levelsReturnBtn.addEventListener('click', showLevelSelection);
+        playAgainBtn.addEventListener('click', showLevelSelection);
+        
+        window.onload = () => {
+            createLevelButtons();
+            showLevelSelection();
+        };
+
+    </script>
+</body>
+</html>
+
+
+
